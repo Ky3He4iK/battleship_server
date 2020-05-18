@@ -1,3 +1,5 @@
+package dev.ky3he4ik.battleship_server
+
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader

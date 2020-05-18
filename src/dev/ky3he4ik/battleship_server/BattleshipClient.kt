@@ -1,3 +1,5 @@
+package dev.ky3he4ik.battleship_server
+
 import org.java_websocket.client.WebSocketClient
 import java.net.URISyntaxException
 import org.java_websocket.handshake.ServerHandshake

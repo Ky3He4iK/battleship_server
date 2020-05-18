@@ -1,5 +1,6 @@
+package dev.ky3he4ik.battleship_server
+
 import com.google.gson.Gson
-import dev.ky3he4ik.battleship.logic.GameConfig
 
 public data class Action(
     val actionType: ActionType,
@@ -11,11 +12,12 @@ public data class Action(
     val otherName: String?,
     val msg: String?,
     val gameId: Long,
-    val code: Int
+    val code: Int,
+    val uuid: Long
 ) {
     public enum class ActionType {
-        CONNECT, // < name
-        // > -
+        CONNECT, // < name, uuid
+        // > code: 1 if success
 
         SEARCH, // < name, otherName
         // > msg: `\n` separated list of connected names
@@ -48,7 +50,7 @@ public data class Action(
         GAME_END, // > -
 
         DISCONNECT, // < -
-        // > -
+                    // > -
     }
 
     public fun toJson(): String {

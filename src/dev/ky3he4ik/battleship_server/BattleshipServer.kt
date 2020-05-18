@@ -175,7 +175,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                         disconnect(value)
                     }
                 }
-                Thread.sleep(1000); // Second between clear
+                Thread.sleep(1000) // Second between clear
             } catch (e: InterruptedException) {
                 println("Interruped: ${e.message}; shutting down")
             } catch (e: java.lang.Exception) {
@@ -188,11 +188,11 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
     companion object {
         @Throws(InterruptedException::class, IOException::class)
         @JvmStatic
-        public fun main(args: Array<String>) {
+        fun main(args: Array<String>) {
             val server = BattleshipServer(6683) // 'bS' key codes
             server.start()
             println("BattleshipServer started on port: " + server.port)
-            server.working();
+            server.working()
         }
     }
 }

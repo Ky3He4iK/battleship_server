@@ -4,7 +4,7 @@ import com.google.gson.Gson
 
 data class Action(
     val actionType: ActionType,
-    val config: GameConfig? = null,
+    val config: String? = null,
     val playerId: Int = 0,
     val name: String,
     val pos: IntArray? = null,
@@ -68,7 +68,7 @@ data class Action(
     constructor(
         action: Action,
         actionType: ActionType = action.actionType,
-        config: GameConfig? = action.config,
+        config: String? = action.config,
         playerId: Int = action.playerId,
          name: String = action.name,
          pos: IntArray? = action.pos,

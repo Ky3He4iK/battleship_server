@@ -15,11 +15,11 @@ public data class Action(
     val code: Int,
     val uuid: Long
 ) {
-    public enum class ActionType {
-        CONNECT, // < name, uuid
-        // > code: 1 if success
+    public enum class ActionType { // name, uuid for all
+        CONNECT, // < -
+        // > if success
 
-        SEARCH, // < name, otherName
+        GET_HOSTS, // < name, otherName
         // > msg: `\n` separated list of connected names
 
         HOST, // < name, config, msg: password
@@ -51,6 +51,20 @@ public data class Action(
 
         DISCONNECT, // < -
                     // > -
+
+        PING,   // < -
+                // > -
+
+        OK,     // < -
+                // > -
+    }
+
+    constructor(actionType: ActionType,
+                 playerId: Int,
+                 name: String,
+                 gameId: Long,
+                 code: Int,
+                 uuid: Long): this(actionType, null, playerId, name, null, null, null, null, gameId, code, uuid) {
     }
 
     public fun toJson(): String {

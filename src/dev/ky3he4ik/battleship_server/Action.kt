@@ -2,20 +2,20 @@ package dev.ky3he4ik.battleship_server
 
 import com.google.gson.Gson
 
-public data class Action(
+data class Action(
     val actionType: ActionType,
-    val config: GameConfig?,
-    val playerId: Int,
+    val config: GameConfig? = null,
+    val playerId: Int = 0,
     val name: String,
-    val pos: IntArray?,
-    val ships: Array<IntArray>?, /* id, idx, idy, rotation */
-    val otherName: String?,
-    val msg: String?,
-    val gameId: Long,
-    val code: Int,
+    val pos: IntArray? = null,
+    val ships: Array<IntArray>? = null, /* id, idx, idy, rotation */
+    val otherName: String? = null,
+    val msg: String? = null,
+    val gameId: Long = 0,
+    val code: Int = 0,
     val uuid: Long
 ) {
-    public enum class ActionType { // name, uuid for all
+    enum class ActionType { // name, uuid for all
         CONNECT, // < -
         // > if success
 
@@ -28,48 +28,59 @@ public data class Action(
         CONNECTED, // > otherName
 
         INFO, // < otherName
-        // > config, code: 1 if with password else 0
+        // > config, code: password length
 
         JOIN, // < name, otherName, msg: password?
-        // > code: zero if fail, config
-
-        SPECTATE, // name, otherName, msg: password?
         // > code: zero if fail, config
 
         START_GAME, // > playerId
 
 
         PLACE_SHIPS,    // < code, playerId, ships
-                        // > -//-
+        // > -//-
 
 
         TURN,   // < code, playerId, ships
-                // > -//-
+        // > -//-
 
 
         GAME_END, // > -
 
         DISCONNECT, // < -
-                    // > -
+        // > -
 
         PING,   // < -
-                // > -
+        // > -
 
         OK,     // < -
-                // > -
+        // > -
+
+        // Just... no
+        NO,     // < -
+        // > -
     }
 
-    constructor(actionType: ActionType,
-                 playerId: Int,
-                 name: String,
-                 gameId: Long,
-                 code: Int,
-                 uuid: Long): this(actionType, null, playerId, name, null, null, null, null, gameId, code, uuid) {
-    }
+    constructor(
+        actionType: ActionType,
+        client: Client
+    ) : this(actionType, name = client.name, uuid = client.uuid)
 
-    public fun toJson(): String {
-        return Gson().toJson(this)
-    }
+    constructor(
+        action: Action,
+        actionType: ActionType = action.actionType,
+        config: GameConfig? = action.config,
+        playerId: Int = action.playerId,
+         name: String = action.name,
+         pos: IntArray? = action.pos,
+         ships: Array<IntArray>? = action.ships, /* id, idx, idy, rotation */
+         otherName: String? = action.otherName,
+         msg: String? = action.msg,
+         gameId: Long = action.gameId,
+         code: Int = action.code,
+         uuid: Long = action.uuid
+    ) : this(actionType, config, playerId, name, pos, ships, otherName, msg, gameId, code, uuid)
+
+    fun toJson(): String = Gson().toJson(this)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -110,8 +121,12 @@ public data class Action(
 
     companion object {
         @JvmStatic
-        public fun fromJson(json: String): Action {
-            return Gson().fromJson(json, Action::class.java)
-        }
+        fun fromJson(json: String): Action? = Gson().fromJson(json, Action::class.java)
+
+        @JvmStatic
+        fun no() = Action(ActionType.NO, name = "", uuid = 0)
+
+        @JvmStatic
+        fun ok() = Action(ActionType.OK, name = "", uuid = 0)
     }
 }

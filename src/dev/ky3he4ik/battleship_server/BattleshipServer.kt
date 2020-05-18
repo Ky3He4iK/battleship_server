@@ -11,10 +11,11 @@ import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.HashMap
 
-public class BattleshipServer @Throws(UnknownHostException::class) constructor(port: Int) :
+class BattleshipServer @Throws(UnknownHostException::class) constructor(port: Int) :
     WebSocketServer(InetSocketAddress(port)) {
     private val connectedClients = Collections.synchronizedMap(HashMap<String, Client>())
     private val games = Collections.synchronizedMap(HashMap<String, Game>())
+    private val waitingGames = Collections.synchronizedMap(HashMap<String, WaitingGame>())
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
 //        conn.send("Welcome to the server!") //This method sends a message to the new client
@@ -27,14 +28,16 @@ public class BattleshipServer @Throws(UnknownHostException::class) constructor(p
 
     override fun onMessage(conn: WebSocket, message: String) {
 //        broadcast(message)
-        val action = Action.fromJson(message)
+        val action = Action.fromJson(message) ?: return
         if (connectedClients.containsKey(action.name)) {
             val client = connectedClients[action.name]
             if (client?.uuid == action.uuid) {
                 client.update()
                 client.connection = conn
-            } else
+            } else {
+                conn.send(Action.no().toJson())
                 return
+            }
         }
         val ans: Action? =
             when (action.actionType) {
@@ -48,25 +51,13 @@ public class BattleshipServer @Throws(UnknownHostException::class) constructor(p
                 }
                 Action.ActionType.GET_HOSTS -> {
                     val hosts = StringBuilder()
-                    games.keys.forEach { host -> hosts.append(host).append('\n') }
-                    Action(
-                        Action.ActionType.CONNECT,
-                        null,
-                        action.playerId,
-                        action.name,
-                        null,
-                        null,
-                        null,
-                        hosts.toString(),
-                        action.gameId,
-                        1,
-                        action.uuid
-                    )
+                    waitingGames.keys.forEach { host -> hosts.append(host).append('\n') }
+                    Action(action, msg = hosts.toString())
                 }
                 Action.ActionType.HOST -> {
-                    if (games.containsKey(action.name)) {
+                    if (games.containsKey(action.name) || waitingGames.containsKey(action.name))
                         null
-                    } else {
+                    else {
 
                         null
                     }
@@ -75,31 +66,73 @@ public class BattleshipServer @Throws(UnknownHostException::class) constructor(p
                     null
                 }
                 Action.ActionType.INFO -> {
-                    null
+                    val game = waitingGames[action.otherName]
+                    if (game != null)
+                        Action(
+                            action,
+                            config = game.config,
+                            code = game.password.length
+                        )
+                    else
+                        null
                 }
                 Action.ActionType.JOIN -> {
-                    null
-                }
-                Action.ActionType.SPECTATE -> {
                     null
                 }
                 Action.ActionType.START_GAME -> {
                     null
                 }
-                Action.ActionType.PLACE_SHIPS -> {
-                    null
-                }
-                Action.ActionType.TURN -> {
-                    null
+                Action.ActionType.PLACE_SHIPS, Action.ActionType.TURN -> {
+                    val game = connectedClients[action.name]?.game
+                    if (game != null)
+                        when (action.uuid) {
+                            game.p1.uuid -> {
+                                game.p2.connection.send(
+                                    Action(
+                                        action,
+                                        playerId = 1,
+                                        name = action.otherName ?: "",
+                                        otherName = action.name,
+                                        uuid = game.p2.uuid
+                                    ).toJson()
+                                )
+                                Action.ok()
+                            }
+                            game.p2.uuid -> {
+                                game.p2.connection.send(
+                                    Action(
+                                        action,
+                                        playerId = 0,
+                                        name = action.otherName ?: "",
+                                        otherName = action.name,
+                                        uuid = game.p1.uuid
+                                    ).toJson()
+                                )
+                                Action.ok()
+                            }
+                            else -> null
+                        }
+                    else
+                        null
                 }
                 Action.ActionType.GAME_END -> {
+                    val game = connectedClients[action.name]?.game
+                    if (game != null) {
+                        game.p1.connection.send(Action(action.actionType, game.p1).toJson())
+                        game.p2.connection.send(Action(action.actionType, game.p2).toJson())
+                        games.remove(game.p1.name)
+                        games.remove(game.p2.name)
+                        return
+                    }
                     null
                 }
                 Action.ActionType.DISCONNECT -> {
-                    null
+                    disconnect(connectedClients[action.name])
+                    return
                 }
                 Action.ActionType.PING -> action
-                Action.ActionType.OK -> null
+                Action.ActionType.OK -> return
+                Action.ActionType.NO -> return
                 else -> {
                     System.err.println("Unknown action type: ${action.actionType}")
                     null
@@ -107,6 +140,8 @@ public class BattleshipServer @Throws(UnknownHostException::class) constructor(p
             }
         if (ans != null)
             conn.send(ans.toJson())
+        else
+            conn.send(Action.no().toJson())
     }
 
     override fun onError(conn: WebSocket?, ex: Exception) {
@@ -120,14 +155,24 @@ public class BattleshipServer @Throws(UnknownHostException::class) constructor(p
         connectionLostTimeout = 100
     }
 
-    fun working() {
+    private fun disconnect(client: Client?) {
+        if (client != null) {
+            connectedClients.remove(client.name)
+            games[client.name]?.finish()
+            val p1 = games[client.name]?.p1?.name
+            val p2 = games[client.name]?.p2?.name
+            games.remove(p1)
+            games.remove(p2)
+            waitingGames.remove(client.name)
+        }
+    }
+
+    private fun working() {
         while (true) {
             try {
-                connectedClients.forEach { (key, value) ->
+                connectedClients.forEach { (_, value) ->
                     if (!value.isAlive()) {
-                        connectedClients.remove(key)
-                        games[key]?.finish()
-                        games.remove(key)
+                        disconnect(value)
                     }
                 }
                 Thread.sleep(1000); // Second between clear

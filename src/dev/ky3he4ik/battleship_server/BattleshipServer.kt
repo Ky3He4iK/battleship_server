@@ -58,13 +58,13 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     if (games.containsKey(action.name) || waitingGames.containsKey(action.name))
                         null
                     else {
-
-                        null
+                        val client = connectedClients[action.name]
+                        if (client != null && action.config != null && action.msg != null)
+                            waitingGames[action.name] = WaitingGame(client, action.config, action.msg)
+                        action
                     }
                 }
-                Action.ActionType.CONNECTED -> {
-                    null
-                }
+                Action.ActionType.CONNECTED -> null
                 Action.ActionType.INFO -> {
                     val game = waitingGames[action.otherName]
                     if (game != null)
@@ -77,11 +77,37 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                         null
                 }
                 Action.ActionType.JOIN -> {
-                    null
+                    val wGame = waitingGames[action.otherName]
+                    if (wGame != null && wGame.password == action.msg) {
+                        val p1 = connectedClients[action.otherName]
+                        val p2 = connectedClients[action.name]
+                        if (p1 != null && p2 != null) {
+                            val game = Game(p1, p2)
+                            games[p1.name] = game
+                            games[p2.name] = game
+                            waitingGames.remove(p1.name)
+                            p1.connection.send(
+                                Action(
+                                    Action.ActionType.START_GAME,
+                                    playerId = 0,
+                                    name = p1.name,
+                                    uuid = p1.uuid,
+                                    gameId = game.id
+                                ).toJson()
+                            )
+                            Action(
+                                Action.ActionType.START_GAME,
+                                playerId = 1,
+                                name = p2.name,
+                                uuid = p2.uuid,
+                                gameId = game.id
+                            )
+                        } else
+                            null
+                    } else
+                        null
                 }
-                Action.ActionType.START_GAME -> {
-                    null
-                }
+                Action.ActionType.START_GAME -> null
                 Action.ActionType.PLACE_SHIPS, Action.ActionType.TURN -> {
                     val game = connectedClients[action.name]?.game
                     if (game != null)
@@ -124,6 +150,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                         games.remove(game.p2.name)
                         return
                     }
+                    waitingGames.remove(action.name)
                     null
                 }
                 Action.ActionType.DISCONNECT -> {
@@ -177,7 +204,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                 }
                 Thread.sleep(1000) // Second between clear
             } catch (e: InterruptedException) {
-                println("Interruped: ${e.message}; shutting down")
+                println("Interrupt: ${e.message}; shutting down")
             } catch (e: java.lang.Exception) {
                 println(e.message)
                 e.printStackTrace()

@@ -5,12 +5,7 @@ import java.net.URISyntaxException
 import org.java_websocket.handshake.ServerHandshake
 import java.net.URI
 
-public class BattleshipClient : WebSocketClient {
-    val name: String
-
-    constructor(serverURI: URI, name: String) : super(serverURI) {
-        this.name = name
-    }
+class BattleshipClient(serverURI: URI, val name: String) : WebSocketClient(serverURI) {
 
     override fun onOpen(handshakeData: ServerHandshake) {
         send("Server connected")

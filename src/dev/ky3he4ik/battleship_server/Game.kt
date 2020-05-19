@@ -2,7 +2,7 @@ package dev.ky3he4ik.battleship_server
 
 import kotlin.random.Random
 
-public class Game(var p1: Client, var p2: Client) {
+class Game(var p1: Client, var p2: Client) {
     val id = Random.nextLong()
 
     fun finish() {

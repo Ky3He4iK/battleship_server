@@ -13,6 +13,7 @@ import kotlin.collections.HashMap
 
 class BattleshipServer @Throws(UnknownHostException::class) constructor(port: Int) :
     WebSocketServer(InetSocketAddress(port)) {
+    private val isDebug = java.lang.Boolean.getBoolean("debug")
     private val connectedClients = Collections.synchronizedMap(HashMap<String, Client>())
     private val games = Collections.synchronizedMap(HashMap<String, Game>())
     private val waitingGames = Collections.synchronizedMap(HashMap<String, WaitingGame>())
@@ -45,7 +46,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     if (connectedClients.containsKey(action.name))
                         null
                     else {
-                        connectedClients[action.name] = Client(action.name, action.uuid, conn, null)
+                        connectedClients[action.name] = Client(action.name, action.uuid, conn)
                         action
                     }
                 }
@@ -86,6 +87,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                             games[p1.name] = game
                             games[p2.name] = game
                             waitingGames.remove(p1.name)
+//                            p1.game = game
+//                            p2.game = game
                             p1.connection.send(
                                 Action(
                                     Action.ActionType.START_GAME,
@@ -108,7 +111,14 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                         null
                 }
                 Action.ActionType.PLACE_SHIPS, Action.ActionType.TURN, Action.ActionType.SYNC -> {
-                    val game = connectedClients[action.name]?.game
+                    if (isDebug)
+                        println(message)
+
+                    val game = games[action.name]
+                    if (isDebug) {
+                        println(action)
+                        println(game)
+                    }
                     if (game != null)
                         when (action.uuid) {
                             game.p1.uuid -> {
@@ -125,7 +135,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                                 Action.ok()
                             }
                             game.p2.uuid -> {
-                                game.p2.connection.send(
+                                game.p1.connection.send(
                                     Action(
                                         action,
                                         playerId = 0,
@@ -143,7 +153,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                         null
                 }
                 Action.ActionType.GAME_END -> {
-                    val game = connectedClients[action.name]?.game
+                    val game = games[action.name]
                     if (game != null) {
                         game.p1.connection.send(Action(action.actionType, game.p1).toJson())
                         game.p2.connection.send(Action(action.actionType, game.p2).toJson())
@@ -195,12 +205,36 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
     }
 
     private fun working() {
+        var counter = 0
         while (true) {
             try {
                 connectedClients.forEach { (_, value) ->
-                    if (!value.isAlive()) {
+                    if (!value.isAlive())
                         disconnect(value)
+                }
+                if (counter > 60) { // full clean each minute
+                    counter = 0
+                    games.forEach { (_, value) ->
+                        if (!connectedClients.containsKey(value.p1.name) || !connectedClients.containsKey(value.p2.name)) {
+                            games.remove(value.p1.name)
+                            games.remove(value.p2.name)
+                            value.finish()
+                        }
                     }
+                    waitingGames.forEach { (_, value) ->
+                        if (!connectedClients.containsKey(value.host.name))
+                            waitingGames.remove(value.host.name)
+                    }
+                    if (isDebug) {
+                        println(waitingGames)
+                        println(games)
+                    }
+                }
+                if (isDebug) {
+                    println(connectedClients.keys)
+                    println(waitingGames.keys)
+                    println(games.keys)
+                    println()
                 }
                 Thread.sleep(1000) // Second between clear
             } catch (e: InterruptedException) {

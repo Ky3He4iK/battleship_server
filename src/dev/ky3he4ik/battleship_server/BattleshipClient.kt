@@ -28,7 +28,7 @@ class BattleshipClient(serverURI: URI, val name: String) : WebSocketClient(serve
         @Throws(URISyntaxException::class)
         @JvmStatic
         fun main(args: Array<String>) {
-            val client = BattleshipClient(URI("ws://localhost:8887"), "Client#1")
+            val client = BattleshipClient(URI("ws://ky3he4ik.dev:6683"), "Client#1")
             client.connect()
         }
     }

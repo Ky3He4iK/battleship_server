@@ -64,7 +64,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                         action
                     }
                 }
-                Action.ActionType.CONNECTED -> null
+                Action.ActionType.CONNECTED, Action.ActionType.START_GAME -> null
                 Action.ActionType.INFO -> {
                     val game = waitingGames[action.otherName]
                     if (game != null)
@@ -107,7 +107,6 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     } else
                         null
                 }
-                Action.ActionType.START_GAME -> null
                 Action.ActionType.PLACE_SHIPS, Action.ActionType.TURN -> {
                     val game = connectedClients[action.name]?.game
                     if (game != null)
@@ -117,9 +116,10 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                                     Action(
                                         action,
                                         playerId = 1,
-                                        name = action.otherName ?: "",
+                                        name = game.p2.name,
                                         otherName = action.name,
-                                        uuid = game.p2.uuid
+                                        uuid = game.p2.uuid,
+                                        msg = action.msg
                                     ).toJson()
                                 )
                                 Action.ok()
@@ -129,9 +129,10 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                                     Action(
                                         action,
                                         playerId = 0,
-                                        name = action.otherName ?: "",
+                                        name = game.p1.name,
                                         otherName = action.name,
-                                        uuid = game.p1.uuid
+                                        uuid = game.p1.uuid,
+                                        msg = action.msg
                                     ).toJson()
                                 )
                                 Action.ok()
@@ -158,8 +159,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     return
                 }
                 Action.ActionType.PING -> action
-                Action.ActionType.OK -> return
-                Action.ActionType.NO -> return
+                Action.ActionType.OK, Action.ActionType.NO -> return
                 else -> {
                     System.err.println("Unknown action type: ${action.actionType}")
                     null

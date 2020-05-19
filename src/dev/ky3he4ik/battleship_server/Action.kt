@@ -58,6 +58,8 @@ data class Action(
         // Just... no
         NO,     // < -
         // > -
+
+        SYNC, // msg: my World in json
     }
 
     constructor(

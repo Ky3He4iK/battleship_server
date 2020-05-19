@@ -107,7 +107,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     } else
                         null
                 }
-                Action.ActionType.PLACE_SHIPS, Action.ActionType.TURN -> {
+                Action.ActionType.PLACE_SHIPS, Action.ActionType.TURN, Action.ActionType.SYNC -> {
                     val game = connectedClients[action.name]?.game
                     if (game != null)
                         when (action.uuid) {

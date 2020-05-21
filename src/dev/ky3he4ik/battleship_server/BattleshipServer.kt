@@ -5,9 +5,12 @@ import java.net.InetSocketAddress
 import java.net.UnknownHostException
 
 import org.java_websocket.WebSocket
+import org.java_websocket.exceptions.WebsocketNotConnectedException
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.lang.StringBuilder
+import java.net.InetAddress
+import java.net.URI
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -17,18 +20,52 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
     private val connectedClients = Collections.synchronizedMap(HashMap<String, Client>())
     private val games = Collections.synchronizedMap(HashMap<String, Game>())
     private val waitingGames = Collections.synchronizedMap(HashMap<String, WaitingGame>())
+    private val pingClient: ClearingClient
+    private var pendingReconnect = false
+
+    init {
+        pingClient = ClearingClient(URI("ws://localhost:$port"), this)
+    }
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
-//        conn.send("Welcome to the server!") //This method sends a message to the new client
-//        broadcast("new connection: " + handshake.resourceDescriptor) //This method sends a message to all clients connected
     }
 
     override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {
-//        broadcast("$conn has left the room!")
     }
 
     override fun onMessage(conn: WebSocket, message: String) {
-//        broadcast(message)
+        if (conn.remoteSocketAddress?.address?.address?.contentEquals(InetAddress.getLocalHost().address) == true
+            || conn.remoteSocketAddress?.address?.address?.contentEquals(byteArrayOf(10, 8, 0, 2)) == true
+            || conn.remoteSocketAddress?.address?.address?.contentEquals(InetAddress.getLoopbackAddress().address) == true
+        ) {
+            if (isDebug)
+                println(message)
+            if (message == "send_server_stats") {
+                conn.send("${connectedClients.keys}\n${waitingGames.keys}\n${games.keys}")
+                return
+            }
+            if (message == "clear") {
+                games.forEach { (_, value) ->
+                    if (!connectedClients.containsKey(value.p1.name) || !connectedClients.containsKey(value.p2.name)) {
+                        games.remove(value.p1.name)
+                        games.remove(value.p2.name)
+                        value.finish()
+                    }
+                }
+                waitingGames.forEach { (_, value) ->
+                    if (!connectedClients.containsKey(value.host.name))
+                        waitingGames.remove(value.host.name)
+                }
+                return
+            }
+            if (message == "clearFast") {
+                connectedClients.forEach { (_, value) ->
+                    if (!value.isAlive())
+                        disconnect(value)
+                }
+                return
+            }
+        }
         val action = Action.fromJson(message) ?: return
         if (connectedClients.containsKey(action.name)) {
             val client = connectedClients[action.name]
@@ -206,44 +243,33 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
 
     private fun working() {
         var counter = 0
+        pingClient.connectBlocking()
         while (true) {
             try {
-                connectedClients.forEach { (_, value) ->
-                    if (!value.isAlive())
-                        disconnect(value)
-                }
-                if (counter > 60) { // full clean each minute
-                    counter = 0
-                    games.forEach { (_, value) ->
-                        if (!connectedClients.containsKey(value.p1.name) || !connectedClients.containsKey(value.p2.name)) {
-                            games.remove(value.p1.name)
-                            games.remove(value.p2.name)
-                            value.finish()
-                        }
-                    }
-                    waitingGames.forEach { (_, value) ->
-                        if (!connectedClients.containsKey(value.host.name))
-                            waitingGames.remove(value.host.name)
-                    }
-                    if (isDebug) {
-                        println(waitingGames)
-                        println(games)
-                    }
-                }
-                if (isDebug) {
-                    println(connectedClients.keys)
-                    println(waitingGames.keys)
-                    println(games.keys)
-                    println()
-                }
                 Thread.sleep(1000) // Second between clear
+                if (pendingReconnect) {
+                    pingClient.reconnectBlocking()
+                    pendingReconnect = false
+                }
+                pingClient.send("clearFast")
+                if (counter > 60) { // full clean each minute
+                    pingClient.send("clear")
+                    counter = 0
+                }
             } catch (e: InterruptedException) {
                 println("Interrupt: ${e.message}; shutting down")
+                break
+            } catch (e: WebsocketNotConnectedException) {
+                pingClient.reconnectBlocking()
             } catch (e: java.lang.Exception) {
                 println(e.message)
                 e.printStackTrace()
             }
         }
+    }
+
+    fun reconnect() {
+        pendingReconnect = true
     }
 
     companion object {

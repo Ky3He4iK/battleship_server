@@ -20,12 +20,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
     private val connectedClients = Collections.synchronizedMap(HashMap<String, Client>())
     private val games = Collections.synchronizedMap(HashMap<String, Game>())
     private val waitingGames = Collections.synchronizedMap(HashMap<String, WaitingGame>())
-    private val pingClient: ClearingClient
+    private val pingClient: ClearingClient = ClearingClient(URI("ws://localhost:$port"), this)
     private var pendingReconnect = false
-
-    init {
-        pingClient = ClearingClient(URI("ws://localhost:$port"), this)
-    }
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
     }
@@ -123,6 +119,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                             val game = Game(p1, p2)
                             games[p1.name] = game
                             games[p2.name] = game
+                            val config = waitingGames[p1.name]?.config
                             waitingGames.remove(p1.name)
 //                            p1.game = game
 //                            p2.game = game
@@ -132,7 +129,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                                     playerId = 0,
                                     name = p1.name,
                                     uuid = p1.uuid,
-                                    gameId = game.id
+                                    gameId = game.id,
+                                    config = config
                                 ).toJson()
                             )
                             Action(
@@ -140,7 +138,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                                 playerId = 1,
                                 name = p2.name,
                                 uuid = p2.uuid,
-                                gameId = game.id
+                                gameId = game.id,
+                                config = config
                             )
                         } else
                             null

@@ -1,16 +1,13 @@
 package dev.ky3he4ik.battleship_server
 
 import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.UnknownHostException
 
 import org.java_websocket.WebSocket
 import org.java_websocket.exceptions.WebsocketNotConnectedException
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.lang.StringBuilder
-import java.net.InetAddress
-import java.net.URI
+import java.net.*
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -242,7 +239,12 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
 
     private fun working() {
         var counter = 0
-        pingClient.connectBlocking()
+        try {
+            pingClient.connectBlocking()
+        } catch (e: BindException) {
+            println("Failed to start: " + e.message)
+            return
+        }
         while (true) {
             try {
                 Thread.sleep(1000) // Second between clear
@@ -275,7 +277,7 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
         @Throws(InterruptedException::class, IOException::class)
         @JvmStatic
         fun main(args: Array<String>) {
-            val server = BattleshipServer(6683) // 'bS' key codes
+            val server = BattleshipServer(6683) // 'BS' key codes
             server.start()
             println("BattleshipServer started on port: " + server.port)
             server.working()

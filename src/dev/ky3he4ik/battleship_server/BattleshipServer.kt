@@ -211,6 +211,27 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                 }
                 Action.ActionType.PING -> action
                 Action.ActionType.OK, Action.ActionType.NO -> return
+                Action.ActionType.GET_STATS -> {
+                    val client = connectedClients[action.name]
+                    if (client != null && client.clientInfo.isAdmin) {
+                        val msg = StringBuilder("Clients:\n")
+                        for (cl in connectedClients)
+                            msg.append(cl.key).append(": ").append(Utils.ipToString(cl.value.connection.remoteSocketAddress)).append('\n')
+                        msg.append("\nGames:\n")
+                        val countedGames = arrayListOf<String>()
+                        for (ga in games) {
+                            if (ga.key !in countedGames) {
+                                msg.append(ga.value.p1.clientInfo.name).append(" with ").append(ga.value.p2.clientInfo.name).append('\n')
+                                if (ga.value.p1.clientInfo.name == ga.key)
+                                    countedGames.add(ga.value.p2.clientInfo.name)
+                                else
+                                    countedGames.add(ga.value.p1.clientInfo.name)
+                            }
+                        }
+                        Action(Action.ActionType.GET_STATS, name = client.clientInfo.name, uuid = client.clientInfo.uuid, msg = msg.toString())
+                    } else
+                        null
+                }
                 else -> {
                     System.err.println("Unknown action type: ${action.actionType}")
                     null

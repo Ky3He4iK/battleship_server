@@ -60,6 +60,8 @@ data class Action(
         // > -
 
         SYNC, // msg: my World in json
+
+        GET_STATS, // msg: all connected players
     }
 
     constructor(

@@ -11,9 +11,9 @@ class Game(var p1: Client, var p2: Client) {
                 Action(
                     actionType = Action.ActionType.DISCONNECT,
                     playerId = 0,
-                    name = p1.name,
+                    name = p1.clientInfo.name,
                     gameId = id,
-                    uuid = p1.uuid
+                    uuid = p1.clientInfo.uuid
                 ).toJson()
             )
         if (p2.connection.isOpen)
@@ -21,9 +21,9 @@ class Game(var p1: Client, var p2: Client) {
                 Action(
                     actionType = Action.ActionType.DISCONNECT,
                     playerId = 1,
-                    name = p2.name,
+                    name = p2.clientInfo.name,
                     gameId = id,
-                    uuid = p2.uuid
+                    uuid = p2.clientInfo.uuid
                 ).toJson()
             )
     }

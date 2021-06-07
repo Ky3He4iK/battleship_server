@@ -1,5 +1,6 @@
 package dev.ky3he4ik.battleship_server
 
+import br.com.devsrsouza.redissed.RedissedCommands
 import java.io.IOException
 
 import org.java_websocket.WebSocket
@@ -10,6 +11,8 @@ import java.lang.StringBuilder
 import java.net.*
 import java.util.*
 import kotlin.collections.HashMap
+import br.com.devsrsouza.redissed.clients.redissed
+import redis.clients.jedis.Jedis
 
 class BattleshipServer @Throws(UnknownHostException::class) constructor(port: Int) :
     WebSocketServer(InetSocketAddress(port)) {
@@ -19,6 +22,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
     private val waitingGames = Collections.synchronizedMap(HashMap<String, WaitingGame>())
     private val pingClient: ClearingClient = ClearingClient(URI("ws://localhost:$port"), this)
     private var pendingReconnect = false
+    private lateinit var jedis: Jedis
+    private lateinit var commands: RedissedCommands
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
     }
@@ -27,10 +32,11 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
     }
 
     override fun onMessage(conn: WebSocket, message: String) {
-        if (conn.remoteSocketAddress?.address?.address?.contentEquals(InetAddress.getLocalHost().address) == true
-            || conn.remoteSocketAddress?.address?.address?.contentEquals(byteArrayOf(10, 8, 0, 2)) == true
-            || conn.remoteSocketAddress?.address?.address?.contentEquals(InetAddress.getLoopbackAddress().address) == true
-        ) {
+        var isLocal = false
+        for (addr in Client.adminWhitelist)
+            if (conn.remoteSocketAddress?.address?.address?.contentEquals(addr) == true)
+                isLocal = true
+        if (isLocal) {
             if (isDebug)
                 println(message)
             if (message == "send_server_stats") {
@@ -39,15 +45,15 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
             }
             if (message == "clear") {
                 games.forEach { (_, value) ->
-                    if (!connectedClients.containsKey(value.p1.name) || !connectedClients.containsKey(value.p2.name)) {
-                        games.remove(value.p1.name)
-                        games.remove(value.p2.name)
+                    if (!connectedClients.containsKey(value.p1.clientInfo.name) || !connectedClients.containsKey(value.p2.clientInfo.name)) {
+                        games.remove(value.p1.clientInfo.name)
+                        games.remove(value.p2.clientInfo.name)
                         value.finish()
                     }
                 }
                 waitingGames.forEach { (_, value) ->
-                    if (!connectedClients.containsKey(value.host.name))
-                        waitingGames.remove(value.host.name)
+                    if (!connectedClients.containsKey(value.host.clientInfo.name))
+                        waitingGames.remove(value.host.clientInfo.name)
                 }
                 return
             }
@@ -59,10 +65,11 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                 return
             }
         }
+
         val action = Action.fromJson(message) ?: return
         if (connectedClients.containsKey(action.name)) {
             val client = connectedClients[action.name]
-            if (client?.uuid == action.uuid) {
+            if (client?.clientInfo?.uuid == action.uuid) {
                 client.update()
                 client.connection = conn
             } else {
@@ -76,7 +83,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     if (connectedClients.containsKey(action.name))
                         null
                     else {
-                        connectedClients[action.name] = Client(action.name, action.uuid, conn)
+                        connectedClients[action.name] =
+                            Client(action.name, action.uuid, conn, "bs_server:clients", commands)
                         action
                     }
                 }
@@ -114,18 +122,18 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                         val p2 = connectedClients[action.name]
                         if (p1 != null && p2 != null) {
                             val game = Game(p1, p2)
-                            games[p1.name] = game
-                            games[p2.name] = game
-                            val config = waitingGames[p1.name]?.config
-                            waitingGames.remove(p1.name)
+                            games[p1.clientInfo.name] = game
+                            games[p2.clientInfo.name] = game
+                            val config = waitingGames[p1.clientInfo.name]?.config
+                            waitingGames.remove(p1.clientInfo.name)
 //                            p1.game = game
 //                            p2.game = game
                             p1.connection.send(
                                 Action(
                                     Action.ActionType.START_GAME,
                                     playerId = 0,
-                                    name = p1.name,
-                                    uuid = p1.uuid,
+                                    name = p1.clientInfo.name,
+                                    uuid = p1.clientInfo.uuid,
                                     gameId = game.id,
                                     config = config
                                 ).toJson()
@@ -133,8 +141,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                             Action(
                                 Action.ActionType.START_GAME,
                                 playerId = 1,
-                                name = p2.name,
-                                uuid = p2.uuid,
+                                name = p2.clientInfo.name,
+                                uuid = p2.clientInfo.uuid,
                                 gameId = game.id,
                                 config = config
                             )
@@ -154,27 +162,27 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     }
                     if (game != null)
                         when (action.uuid) {
-                            game.p1.uuid -> {
+                            game.p1.clientInfo.uuid -> {
                                 game.p2.connection.send(
                                     Action(
                                         action,
                                         playerId = 1,
-                                        name = game.p2.name,
+                                        name = game.p2.clientInfo.name,
                                         otherName = action.name,
-                                        uuid = game.p2.uuid,
+                                        uuid = game.p2.clientInfo.uuid,
                                         msg = action.msg
                                     ).toJson()
                                 )
                                 Action.ok()
                             }
-                            game.p2.uuid -> {
+                            game.p2.clientInfo.uuid -> {
                                 game.p1.connection.send(
                                     Action(
                                         action,
                                         playerId = 0,
-                                        name = game.p1.name,
+                                        name = game.p1.clientInfo.name,
                                         otherName = action.name,
-                                        uuid = game.p1.uuid,
+                                        uuid = game.p1.clientInfo.uuid,
                                         msg = action.msg
                                     ).toJson()
                                 )
@@ -190,8 +198,8 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                     if (game != null) {
                         game.p1.connection.send(Action(action.actionType, game.p1).toJson())
                         game.p2.connection.send(Action(action.actionType, game.p2).toJson())
-                        games.remove(game.p1.name)
-                        games.remove(game.p2.name)
+                        games.remove(game.p1.clientInfo.name)
+                        games.remove(game.p2.clientInfo.name)
                         return
                     }
                     waitingGames.remove(action.name)
@@ -223,17 +231,21 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
         println("Server started!")
         connectionLostTimeout = 0
         connectionLostTimeout = 100
+
+        jedis = Jedis("localhost", 6379)
+        jedis.connect()
+        commands = jedis.redissed
     }
 
     private fun disconnect(client: Client?) {
         if (client != null) {
-            connectedClients.remove(client.name)
-            games[client.name]?.finish()
-            val p1 = games[client.name]?.p1?.name
-            val p2 = games[client.name]?.p2?.name
+            connectedClients.remove(client.clientInfo.name)
+            games[client.clientInfo.name]?.finish()
+            val p1 = games[client.clientInfo.name]?.p1?.clientInfo?.name
+            val p2 = games[client.clientInfo.name]?.p2?.clientInfo?.name
             games.remove(p1)
             games.remove(p2)
-            waitingGames.remove(client.name)
+            waitingGames.remove(client.clientInfo.name)
         }
     }
 

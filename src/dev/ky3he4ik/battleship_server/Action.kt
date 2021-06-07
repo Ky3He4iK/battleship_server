@@ -65,21 +65,21 @@ data class Action(
     constructor(
         actionType: ActionType,
         client: Client
-    ) : this(actionType, name = client.name, uuid = client.uuid)
+    ) : this(actionType, name = client.clientInfo.name, uuid = client.clientInfo.uuid)
 
     constructor(
         action: Action,
         actionType: ActionType = action.actionType,
         config: String? = action.config,
         playerId: Int = action.playerId,
-         name: String = action.name,
-         pos: IntArray? = action.pos,
-         ships: Array<IntArray>? = action.ships, /* id, idx, idy, rotation */
-         otherName: String? = action.otherName,
-         msg: String? = action.msg,
-         gameId: Long = action.gameId,
-         code: Int = action.code,
-         uuid: Long = action.uuid
+        name: String = action.name,
+        pos: IntArray? = action.pos,
+        ships: Array<IntArray>? = action.ships, /* id, idx, idy, rotation */
+        otherName: String? = action.otherName,
+        msg: String? = action.msg,
+        gameId: Long = action.gameId,
+        code: Int = action.code,
+        uuid: Long = action.uuid
     ) : this(actionType, config, playerId, name, pos, ships, otherName, msg, gameId, code, uuid)
 
     fun toJson(): String = Gson().toJson(this)

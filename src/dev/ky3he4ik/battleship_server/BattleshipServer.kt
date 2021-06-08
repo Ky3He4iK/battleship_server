@@ -228,6 +228,9 @@ class BattleshipServer @Throws(UnknownHostException::class) constructor(port: In
                                     countedGames.add(ga.value.p1.clientInfo.name)
                             }
                         }
+                        msg.append("\nAwaiting:\n")
+                        for (wg in waitingGames)
+                            msg.append(wg.key).append('\n')
                         Action(Action.ActionType.GET_STATS, name = client.clientInfo.name, uuid = client.clientInfo.uuid, msg = msg.toString())
                     } else
                         null
